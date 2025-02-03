@@ -11,7 +11,7 @@ from ._layer import TransformerLayer
 
 
 @jax.jit
-def _randint(key: PRNGKeyArray, index: int, maxval: Int[ArrayLike, ""]):
+def _randint(key: PRNGKeyArray, index: Int[ArrayLike, ""], maxval: Int[ArrayLike, ""]):
     return jr.randint(jr.fold_in(key, index), (), minval=0, maxval=maxval)
 
 
