@@ -1,36 +1,44 @@
-[project]
-name = "esm2quinox"
-version = "0.0.1"
-description = "ESM2 implemented in Equinox+JAX."
-readme = "README.md"
-requires-python =">=3.10"
-license = {file = "LICENSE"}
-authors = [
-  {name = "Patrick Kidger", email = "contact@kidger.site"},
-]
-keywords = ["jax", "neural-networks", "deep-learning", "equinox", "esm2", "protein-language-model"]
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "Intended Audience :: Financial and Insurance Industry",
-    "Intended Audience :: Information Technology",
-    "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: Apache Software License",
-    "Natural Language :: English",
-    "Programming Language :: Python :: 3",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Topic :: Scientific/Engineering :: Information Analysis",
-    "Topic :: Scientific/Engineering :: Mathematics",
-]
-urls = {repository = "https://github.com/patrick-kidger/esm2quinox" }
-dependencies = ["equinox>=0.11.11", "jax>=0.5.0", "jaxtyping>=0.2.37"]
-
 [build-system]
-requires = ["hatchling"]
 build-backend = "hatchling.build"
+requires = ["hatchling"]
+
+[project]
+authors = [
+  {email = "contact@kidger.site", name = "Patrick Kidger"}
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Financial and Insurance Industry",
+  "Intended Audience :: Information Technology",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: Apache Software License",
+  "Natural Language :: English",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+  "Topic :: Scientific/Engineering :: Mathematics"
+]
+dependencies = ["equinox>=0.11.11", "jax>=0.5.0", "jaxtyping>=0.2.37"]
+description = "ESM2 implemented in Equinox+JAX."
+keywords = ["jax", "neural-networks", "deep-learning", "equinox", "esm2", "protein-language-model"]
+license = {file = "LICENSE"}
+name = "esm2quinox"
+readme = "README.md"
+requires-python = ">=3.10"
+urls = {repository = "https://github.com/patrick-kidger/esm2quinox"}
+version = "0.1.0"
+
+[project.optional-dependencies]
+dev = ["beartype", "fair-esm==2.0.0", "pre-commit", "pytest", "torch"]
 
 [tool.hatch.build]
 include = ["esm2quinox/*"]
+
+[tool.pyright]
+include = ["esm2quinox", "tests"]
+reportIncompatibleMethodOverride = true
+reportIncompatibleVariableOverride = false # Incompatible with eqx.AbstractVar
 
 [tool.pytest.ini_options]
 addopts = "--jaxtyping-packages=esm2quinox,beartype.beartype(conf=beartype.BeartypeConf(strategy=beartype.BeartypeStrategy.On))"
@@ -50,8 +58,3 @@ combine-as-imports = true
 extra-standard-library = ["typing_extensions"]
 lines-after-imports = 2
 order-by-type = false
-
-[tool.pyright]
-reportIncompatibleMethodOverride = true
-reportIncompatibleVariableOverride = false  # Incompatible with eqx.AbstractVar
-include = ["esm2quinox", "tests"]
