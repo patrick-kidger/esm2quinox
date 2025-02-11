@@ -1,8 +1,6 @@
 <h1 align="center">ESM2quinox</h1>
 <h2 align="center">An implementation of <a href="https://github.com/facebookresearch/esm">ESM2</a> in <a href="https://github.com/patrick-kidger/equinox">Equinox+JAX</a></h2>
 
-Only implements the representation trunk (not the structure-prediction head).
-
 ## Installation
 
 ```
