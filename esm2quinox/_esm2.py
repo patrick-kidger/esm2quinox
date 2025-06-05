@@ -15,11 +15,24 @@ def _randint(key: PRNGKeyArray, index: Int[ArrayLike, ""], maxval: Int[ArrayLike
     return jr.randint(jr.fold_in(key, index), (), minval=0, maxval=maxval)
 
 
+# The ESM2 alphabet is a bit weird.
+#
+# - The alphabet includes 'X' and 'unknown' as separate tokens. 'X' doesn't have a
+#    standard definition in FASTA formats, but it often corresponds to either an unknown
+#    or a nonstandardi amino acid. Due to this ambiguity we preserve the use of these
+#    two separate tokens, and let users specify 'unknown' with '?'. Although honestly I
+#    doubt whether you'll get good results out of the model with either token.
+#
+# - The alphabet includes `.` despite that not really having a standard meaning in
+#    FASTA? I have no idea why this should be.
+#    As I normally use '.' to indicate padding, then here I've decided to use that to
+#    indicate a padding character, and so there is no way for a user to get out 29 from
+#    the tokenisation. Hopefully that's okay.
 _alphabet = {
-    "b": 0,  # beginning-of-sequence / 'cls'
-    "p": 1,  # pad
-    "e": 2,  # end-of-sequence
-    "u": 3,  # unknown
+    "^": 0,  # beginning-of-sequence / 'cls'
+    ".": 1,  # pad
+    "$": 2,  # end-of-sequence
+    "?": 3,  # unknown
     "L": 4,
     "A": 5,
     "G": 6,
@@ -45,12 +58,14 @@ _alphabet = {
     "U": 26,
     "Z": 27,
     "O": 28,
-    ".": 29,
+    # ".": 29,
     "-": 30,
     "1": 31,  # null_1
-    "m": 32,  # mask
+    "#": 32,  # mask
 }
-assert len(_alphabet) == max(_alphabet.values()) + 1
+# Commented out as we don't have the original `.`
+assert len(_alphabet) == max(_alphabet.values())  # + 1
+_alphabet_size = max(_alphabet.values()) + 1
 
 
 def tokenise(
@@ -61,7 +76,8 @@ def tokenise(
 
     **Arguments:**
 
-    - `proteins`: a list of proteins, each in FASTA format.
+    - `proteins`: a list of proteins, each in FASTA format. Use `#` to indicate a mask
+        token. For example, `proteins = ["SP#DERM#N"]`
     - `length`: the length to pad or truncate to. If not passed then defaults to two
         greater than the maximum length of all `proteins`. (The extra two is to fit the
         start and stop token.) Padding is always done at the end of the protein;
@@ -78,16 +94,16 @@ def tokenise(
 
         ```python
         from esm2quinox import tokenise
-        proteins = tokenise(["SPIDERMAN", "FOO"])
-        proteins = tokenise(["SPIDERMAN", "FOO"], length=4, key=jax.random.key(0))
+        proteins = tokenise(["SP#DERM#N", "FOO"])
+        proteins = tokenise(["SP#DERM#N", "FOO"], length=4, key=jax.random.key(0))
         ```
     """
     if length is None:
         # +2 for start and stop.
         length = max(map(len, proteins)) + 2
-    out = np.full((len(proteins), length), _alphabet["p"])
+    out = np.full((len(proteins), length), _alphabet["."])
     for protein_index, protein in enumerate(proteins):
-        protein = f"b{protein.upper()}e"
+        protein = f"^{protein.upper()}$"
         if len(protein) > length:
             if key is None:
                 raise ValueError(
@@ -137,7 +153,6 @@ class ESM2(eqx.Module):
     embed_size: int = eqx.field(static=True)
     num_heads: int = eqx.field(static=True)
     token_dropout: bool = eqx.field(static=True)
-    alphabet: dict[str, int] = eqx.field(static=True)
 
     layers: TransformerLayer
     layer_norm: eqx.nn.LayerNorm
@@ -169,7 +184,6 @@ class ESM2(eqx.Module):
         self.embed_size = embed_size
         self.num_heads = num_heads
         self.token_dropout = token_dropout
-        self.alphabet = _alphabet.copy()
 
         keys = jr.split(key, num_layers + 1)
         layer_keys = keys[:-1]
@@ -179,12 +193,12 @@ class ESM2(eqx.Module):
             embed_size, 4 * embed_size, num_heads, layer_keys
         )
         self.layer_norm = eqx.nn.LayerNorm(embed_size)
-        self.logit_head = LogitHead(embed_size, len(self.alphabet), logit_key)
+        self.logit_head = LogitHead(embed_size, _alphabet_size, logit_key)
 
     @property
     def embedding(self):
         return eqx.nn.Embedding(
-            num_embeddings=len(self.alphabet),
+            num_embeddings=_alphabet_size,
             embedding_size=self.embed_size,
             weight=self.logit_head.linear2.weight,
         )
@@ -219,10 +233,10 @@ class ESM2(eqx.Module):
     @eqx.filter_jit
     def _call(self, tokens: Int[AnyArray, " length"]) -> ESM2Result:
         x = jax.vmap(self.embedding)(tokens)
-        is_pad = tokens == _alphabet["p"]
+        is_pad = tokens == _alphabet["."]
         not_pad = jnp.logical_not(is_pad)
         if self.token_dropout:
-            is_mask = tokens == _alphabet["m"]
+            is_mask = tokens == _alphabet["#"]
             x = jnp.where(is_mask[:, None], 0, x)
             mask_ratio_train = 0.15 * 0.8
             mask_ratio_observed = is_mask.sum() / not_pad.sum()

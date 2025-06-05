@@ -75,27 +75,31 @@ def test_esm2(token_dropout, getkey):
 
 
 def test_tokenise(getkey):
-    proteins = ["SPIDERMAN", "FOO"]
+    torch_proteins = ["SPIDERMAN", "FOO", "BA<mask><mask>R"]
+    jax_proteins = ["SPIDERMAN", "FOO", "BA##R"]
     _, alphabet = esm.pretrained.esm2_t6_8M_UR50D()  # pyright: ignore[reportAttributeAccessIssue]
     converter = esm.data.BatchConverter(alphabet)  # pyright: ignore[reportAttributeAccessIssue]
-    _, _, torch_tokenised = converter([("", protein) for protein in proteins])
-    jax_tokenised = esm2quinox.tokenise(proteins)
+    _, _, torch_tokenised = converter([("", protein) for protein in torch_proteins])
+    jax_tokenised = esm2quinox.tokenise(jax_proteins)
     assert torch_tokenised.shape == jax_tokenised.shape
     assert np.all(np.asarray(torch_tokenised) == np.asarray(jax_tokenised))
 
-    spid, foo = esm2quinox.tokenise(proteins, length=4, key=getkey())
+    spid, foo, bar = esm2quinox.tokenise(jax_proteins, length=4, key=getkey())
     [true_spid] = esm2quinox.tokenise(["SPIDERMAN"])
     [true_foo] = esm2quinox.tokenise(["FOO"])
+    [true_bar] = esm2quinox.tokenise(["BA##R"])
     assert spid.shape == (4,)
     assert true_spid.shape == (11,)
     assert foo.shape == (4,)
     assert true_foo.shape == (5,)
-    assert np.all(foo == true_foo[1:]) or np.all(foo == true_foo[:-1])
-    for i in range(8):
-        if np.all(spid == true_spid[i : i + 4]):
-            break
-    else:
-        assert False
+    assert bar.shape == (4,)
+    assert true_bar.shape == (7,)
+    for x, true_x in [(spid, true_spid), (foo, true_foo), (bar, true_bar)]:
+        for i in range(len(true_x) - 3):
+            if np.all(x == true_x[i : i + 4]):
+                break
+        else:
+            assert False
 
 
 @pytest.mark.parametrize("token_dropout", (False, True))
@@ -107,8 +111,8 @@ def test_call_on_string(token_dropout, getkey):
         token_dropout=token_dropout,
         key=getkey(),
     )
-    out = model("SPIDmmERMAN")
-    [tokens] = esm2quinox.tokenise(["SPIDmmERMAN"])
+    out = model("SPID##ERMAN")
+    [tokens] = esm2quinox.tokenise(["SPID##ERMAN"])
     out2 = model(tokens)
     assert jnp.array_equal(out.hidden, out2.hidden)
     assert jnp.array_equal(out.logits, out2.logits)

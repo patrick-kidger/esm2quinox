@@ -27,7 +27,7 @@ name = "esm2quinox"
 readme = "README.md"
 requires-python = ">=3.10"
 urls = {repository = "https://github.com/patrick-kidger/esm2quinox"}
-version = "0.1.0"
+version = "0.2.0"
 
 [project.optional-dependencies]
 dev = ["beartype", "fair-esm==2.0.0", "pre-commit", "pytest", "torch"]
