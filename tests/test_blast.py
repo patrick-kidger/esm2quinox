@@ -1,4 +1,5 @@
 import json
+import warnings
 from unittest.mock import patch
 
 import esm2quinox
@@ -88,13 +89,11 @@ def test_submit_blast():
 def test_parse_hits():
     parsed = _parse_hits(_MOCK_JSON_RESULT)
     assert len(parsed) == 2
-    acc0, title0, ev0, idf0 = parsed[0]
-    assert acc0 == "P12345"
-    assert title0 == "Some protein"
-    assert ev0 == 1e-50
-    assert abs(idf0 - 0.9) < 1e-9
-    acc1, _, _, _ = parsed[1]
-    assert acc1 == "Q67890"
+    assert parsed[0].accession == "P12345"
+    assert parsed[0].description == "Some protein"
+    assert parsed[0].evalue == 1e-50
+    assert abs(parsed[0].identity_fraction - 0.9) < 1e-9
+    assert parsed[1].accession == "Q67890"
 
 
 def test_parse_hits_list_format():
@@ -160,3 +159,34 @@ def test_blast_end_to_end():
     sequences = [hit.sequence for hit in hits]
     tokens = esm2quinox.tokenise(sequences)
     assert tokens.shape[0] == 2
+
+
+def test_blast_warns_on_missing_sequence():
+    submit_response = _MOCK_SUBMIT_RESPONSE
+    json_response = json.dumps(_MOCK_JSON_RESULT)
+    # Only return one of the two sequences.
+    partial_fasta = """\
+>P12345.1 Some protein
+MKWVTFISLLFLFSSAYSRGVFRR
+"""
+
+    call_count = 0
+
+    def mock_request(url, data):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return submit_response
+        if call_count == 2:
+            return json_response
+        return partial_fasta
+
+    with patch("esm2quinox._blast._request", side_effect=mock_request):
+        with patch("time.sleep"):
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                hits = esm2quinox.blast("MKWVTFIS")
+    assert len(hits) == 1
+    assert hits[0].accession == "P12345"
+    assert len(w) == 1
+    assert "Q67890" in str(w[0].message)

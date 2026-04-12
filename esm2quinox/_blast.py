@@ -1,7 +1,9 @@
 import re
 import time
 import json
+import warnings
 from dataclasses import dataclass
+from typing import NamedTuple
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -27,6 +29,13 @@ class BlastHit:
     accession: str
     description: str
     sequence: str
+    evalue: float
+    identity_fraction: float
+
+
+class _ParsedHit(NamedTuple):
+    accession: str
+    description: str
     evalue: float
     identity_fraction: float
 
@@ -69,17 +78,17 @@ def _poll_blast(rid: str) -> dict:
         "RID": rid,
         "FORMAT_TYPE": "JSON2_S",
     }
-    delay = 20
     start = time.monotonic()
+    delay = 20
     while True:
-        time.sleep(delay)
-        delay = min(delay + 10, 60)
         text = _request(_BLAST_URL, params)
         if "Status=WAITING" in text:
             if time.monotonic() - start > 600:
                 raise TimeoutError(
                     f"BLAST search {rid} has been running for over 10 minutes."
                 )
+            time.sleep(delay)
+            delay = min(delay + 10, 60)
             continue
         if "Status=FAILED" in text:
             raise RuntimeError(f"BLAST search {rid} failed.")
@@ -91,13 +100,14 @@ def _poll_blast(rid: str) -> dict:
         except json.JSONDecodeError:
             # Might be HTML with Status=READY; try one more time to get JSON.
             if "Status=READY" in text:
+                time.sleep(delay)
                 continue
             raise RuntimeError(
                 f"Unexpected BLAST response:\n{text[:500]}"
             )
 
 
-def _parse_hits(result: dict) -> list[tuple[str, str, float, float]]:
+def _parse_hits(result: dict) -> list[_ParsedHit]:
     # JSON2_S structure:
     # {"BlastOutput2": {"report": {"results": {"search": {"hits": [...]}}}}}
     # or sometimes: {"BlastOutput2": [{"report": ...}]}
@@ -117,7 +127,7 @@ def _parse_hits(result: dict) -> list[tuple[str, str, float, float]]:
         identity = best_hsp["identity"]
         align_len = best_hsp["align_len"]
         identity_fraction = identity / align_len if align_len > 0 else 0.0
-        parsed.append((accession, title, evalue, identity_fraction))
+        parsed.append(_ParsedHit(accession, title, evalue, identity_fraction))
     return parsed
 
 
@@ -207,20 +217,25 @@ def blast(
     parsed = _parse_hits(result)
     if len(parsed) == 0:
         return []
-    accessions = [acc for acc, _, _, _ in parsed]
+    accessions = [hit.accession for hit in parsed]
     sequences = _fetch_sequences(accessions)
     hits = []
-    for accession, description, ev, identity_fraction in parsed:
-        seq = sequences.get(accession, "")
+    for hit in parsed:
+        seq = sequences.get(hit.accession, "")
         if len(seq) == 0:
+            warnings.warn(
+                f"Could not fetch sequence for accession {hit.accession}; "
+                f"skipping this hit.",
+                stacklevel=2,
+            )
             continue
         hits.append(
             BlastHit(
-                accession=accession,
-                description=description,
+                accession=hit.accession,
+                description=hit.description,
                 sequence=seq,
-                evalue=ev,
-                identity_fraction=identity_fraction,
+                evalue=hit.evalue,
+                identity_fraction=hit.identity_fraction,
             )
         )
     return hits
