@@ -1,3 +1,4 @@
+from ._blast import blast as blast, BlastHit as BlastHit
 from ._esm2 import ESM2 as ESM2, ESM2Result as ESM2Result, tokenise as tokenise
 from ._torch2eqx import (
     from_torch as from_torch,
