@@ -2,6 +2,20 @@
 build-backend = "hatchling.build"
 requires = ["hatchling"]
 
+[dependency-groups]
+dev = [
+  "prek==0.3.9",
+  "pyright==1.1.352",
+  "ruff==0.13.0",
+  "toml-sort==0.23.1"
+]
+tests = [
+  "beartype",
+  "fair-esm==2.0.0",
+  "pytest",
+  "torch"
+]
+
 [project]
 authors = [
   {email = "contact@kidger.site", name = "Patrick Kidger"}
@@ -29,9 +43,6 @@ requires-python = ">=3.10"
 urls = {repository = "https://github.com/patrick-kidger/esm2quinox"}
 version = "0.2.0"
 
-[project.optional-dependencies]
-dev = ["beartype", "fair-esm==2.0.0", "pre-commit", "pytest", "torch"]
-
 [tool.hatch.build]
 include = ["esm2quinox/*"]
 
@@ -58,3 +69,6 @@ combine-as-imports = true
 extra-standard-library = ["typing_extensions"]
 lines-after-imports = 2
 order-by-type = false
+
+[tool.uv]
+default-groups = ["dev", "tests"]
