@@ -119,12 +119,14 @@ def tokenise(
 
 class ESM2Result(eqx.Module):
     """The output result from calling `esm2quinox.ESM2.__call__`. Has the `.hidden`
-    representation from the final layer of the model, and the `.logits` (pre-softmax)
-    from mapping that hidden layers through a prediction head.
+    representation from the final layer of the model, the `.logits` (pre-softmax)
+    from mapping that hidden layers through a prediction head, and `.all_hidden`
+    which contains the outputs from all layers (including the final layer).
     """
 
     hidden: Float[Array, "length embed_size"]
     logits: Float[Array, "length alphabet_size"]
+    all_hidden: list[Float[Array, "length embed_size"]]
 
 
 class LogitHead(eqx.Module):
@@ -249,10 +251,14 @@ class ESM2(eqx.Module):
         def f(x, dynamic_layer):
             layer = eqx.combine(dynamic_layer, static_layer)
             x = layer(x, is_pad=is_pad)
-            return x, None
+            return x, x
 
-        x, _ = lax.scan(f, x, xs=dynamic_layers)
+        x, all_hidden = lax.scan(f, x, xs=dynamic_layers)
         hidden = jax.vmap(self.layer_norm)(x)
         logits = jax.vmap(self.logit_head)(hidden)
 
-        return ESM2Result(hidden=hidden, logits=logits)
+        return ESM2Result(
+            hidden=hidden,
+            logits=logits,
+            all_hidden=list(all_hidden),
+        )

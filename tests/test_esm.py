@@ -116,3 +116,48 @@ def test_call_on_string(token_dropout, getkey):
     out2 = model(tokens)
     assert jnp.array_equal(out.hidden, out2.hidden)
     assert jnp.array_equal(out.logits, out2.logits)
+
+
+def test_all_hidden_output(getkey):
+    num_layers = 4
+    embed_size = 24
+    num_heads = 3
+    alphabet_size = 33
+
+    model = esm2quinox.ESM2(
+        num_layers=num_layers,
+        embed_size=embed_size,
+        num_heads=num_heads,
+        token_dropout=False,
+        key=getkey(),
+    )
+
+    # Test with tokenised input
+    protein = "SPIDERMAN"
+    [tokens] = esm2quinox.tokenise([protein])
+    seq_length = len(tokens)
+
+    out = model(tokens)
+
+    # Check all_hidden is a list with the right amount of elements
+    assert isinstance(out.all_hidden, list), (
+        f"Expected all_hidden to be a list, got {type(out.all_hidden)}"
+    )
+    assert len(out.all_hidden) == num_layers, (
+        f"Expected all_hidden to have {num_layers} elements, got {len(out.all_hidden)}"
+    )
+    # Check each element has the right shape
+    for i, hidden in enumerate(out.all_hidden):
+        assert hidden.shape == (seq_length, embed_size), (
+            f"Expected all_hidden[{i}] shape {(seq_length, embed_size)}, "
+            f"got {hidden.shape}"
+        )
+
+    # Test with string input
+    out2 = model("SPIDERMAN")
+    assert out2.hidden.shape == (seq_length, embed_size)
+    assert out2.logits.shape == (seq_length, alphabet_size)
+    assert isinstance(out2.all_hidden, list)
+    assert len(out2.all_hidden) == num_layers
+    for hidden in out2.all_hidden:
+        assert hidden.shape == (seq_length, embed_size)
